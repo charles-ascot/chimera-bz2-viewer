@@ -234,18 +234,33 @@ def index():
     return redirect(url_for('login'))
 
 
+def get_oauth_client_config():
+    """Get OAuth client config from env vars or credentials.json file."""
+    if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
+        return {
+            "web": {
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+            }
+        }
+    return None
+
+
 @app.route('/login')
 def login():
     """Google OAuth login."""
-    flow = Flow.from_client_secrets_file(
-        'credentials.json',
-        scopes=SCOPES,
-        redirect_uri=url_for('oauth_callback', _external=True)
-    )
-    
+    client_config = get_oauth_client_config()
+    if client_config:
+        flow = Flow.from_client_config(client_config, scopes=SCOPES)
+    else:
+        flow = Flow.from_client_secrets_file('credentials.json', scopes=SCOPES)
+    flow.redirect_uri = url_for('oauth_callback', _external=True)
+
     auth_url, state = flow.authorization_url(prompt='consent')
     session['state'] = state
-    
+
     return redirect(auth_url)
 
 
@@ -253,12 +268,12 @@ def login():
 def oauth_callback():
     """Google OAuth callback."""
     state = session['state']
-    flow = Flow.from_client_secrets_file(
-        'credentials.json',
-        scopes=SCOPES,
-        redirect_uri=url_for('oauth_callback', _external=True),
-        state=state
-    )
+    client_config = get_oauth_client_config()
+    if client_config:
+        flow = Flow.from_client_config(client_config, scopes=SCOPES, state=state)
+    else:
+        flow = Flow.from_client_secrets_file('credentials.json', scopes=SCOPES, state=state)
+    flow.redirect_uri = url_for('oauth_callback', _external=True)
     
     flow.fetch_token(authorization_response=request.url)
     creds = flow.credentials
