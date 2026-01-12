@@ -4,6 +4,8 @@ Uploads data directly to user's Google Sheets using OAuth
 """
 
 import os
+# Relax OAuth scope validation (Google returns equivalent but differently named scopes)
+os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
 import bz2
 import json
 import csv
@@ -282,7 +284,7 @@ def oauth_callback():
     else:
         flow = Flow.from_client_secrets_file('credentials.json', scopes=SCOPES, state=state)
     flow.redirect_uri = url_for('oauth_callback', _external=True)
-    
+
     flow.fetch_token(authorization_response=request.url)
     creds = flow.credentials
     
