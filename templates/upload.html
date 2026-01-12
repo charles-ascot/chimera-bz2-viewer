@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CHIMERA - BZ2 to Sheets</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+    <style>
+        .upload-area {
+            border: 2px dashed rgba(0, 212, 255, 0.4);
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            transition: all 0.3s ease;
+            background: rgba(20, 30, 50, 0.3);
+            cursor: pointer;
+        }
+
+        .upload-area:hover {
+            border-color: #00D4FF;
+            background: rgba(20, 30, 50, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .upload-area.dragover {
+            border-color: #00D4FF;
+            background: rgba(0, 212, 255, 0.1);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            color: #00D4FF;
+        }
+
+        .upload-text {
+            font-size: 16px;
+            color: #e0e0e0;
+            margin-bottom: 8px;
+        }
+
+        .upload-subtext {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 24px;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .processing {
+            display: none;
+        }
+
+        .processing.active {
+            display: block;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(0, 212, 255, 0.3);
+            border-top-color: #00D4FF;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .success-banner {
+            display: none;
+            background: rgba(0, 212, 100, 0.15);
+            border: 1px solid rgba(0, 212, 100, 0.5);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 24px;
+            animation: slideDown 0.4s ease-out;
+        }
+
+        .success-banner.show {
+            display: block;
+        }
+
+        .success-message {
+            color: #4ade80;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .sheet-link {
+            display: inline-block;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #00D4FF 0%, #0099FF 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: all 0.3s ease;
+            margin-top: 12px;
+        }
+
+        .sheet-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 212, 255, 0.3);
+        }
+
+        .record-count {
+            color: #00D4FF;
+            font-family: 'Lexend', sans-serif;
+            font-weight: 600;
+        }
+
+        .error-banner {
+            display: none;
+            background: rgba(255, 70, 100, 0.15);
+            border: 1px solid rgba(255, 70, 100, 0.5);
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 24px;
+            color: #FF6B6B;
+            animation: slideDown 0.4s ease-out;
+        }
+
+        .error-banner.show {
+            display: block;
+        }
+
+        .file-info {
+            margin-top: 20px;
+            padding: 16px;
+            background: rgba(0, 212, 255, 0.05);
+            border: 1px solid rgba(0, 212, 255, 0.2);
+            border-radius: 10px;
+            font-size: 13px;
+            color: #888;
+        }
+
+        .file-info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+        }
+
+        .file-info-label {
+            color: #666;
+            font-weight: 500;
+        }
+
+        .file-info-value {
+            color: #00D4FF;
+            font-family: 'Courier New', monospace;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="image-bg"></div>
+    <div class="login-overlay"></div>
+    
+    <div class="app">
+        <div class="dashboard">
+            <!-- Header -->
+            <div class="header">
+                <div class="header-left">
+                    <div class="header-title">CHIMERA BZ2 Viewer</div>
+                    <div class="header-subtitle">Convert to Google Sheets Instantly</div>
+                </div>
+                <div>
+                    <button class="button-logout" onclick="logout()">LOGOUT</button>
+                </div>
+            </div>
+
+            <!-- Content -->
+            <div class="content">
+                <div class="glass-panel" style="max-width: 700px; margin: 0 auto;">
+                    <div style="text-align: center; margin-bottom: 30px;">
+                        <div style="font-size: 14px; color: #888; margin-bottom: 8px;">Logged in as:</div>
+                        <div style="color: #00D4FF; font-weight: 600; font-size: 14px;">{{ email }}</div>
+                    </div>
+
+                    <!-- Error Banner -->
+                    <div id="errorBanner" class="error-banner"></div>
+
+                    <!-- Success Banner -->
+                    <div id="successBanner" class="success-banner">
+                        <div class="success-message">✓ File processed successfully!</div>
+                        <div id="successDetails"></div>
+                        <a id="sheetLink" href="#" target="_blank" class="sheet-link">OPEN IN GOOGLE SHEETS</a>
+                    </div>
+
+                    <!-- Upload Area -->
+                    <div id="uploadArea" class="upload-area">
+                        <div class="upload-icon">📤</div>
+                        <div class="upload-text">Drop your .bz2 file here</div>
+                        <div class="upload-subtext">or click to browse</div>
+                        <input type="file" id="fileInput" accept=".bz2" />
+                    </div>
+
+                    <!-- Processing -->
+                    <div id="processing" class="processing">
+                        <div style="text-align: center; padding: 20px;">
+                            <div class="spinner"></div>
+                            <div id="processingText" style="color: #00D4FF; font-weight: 600; margin-top: 10px;">
+                                Processing file...
+                            </div>
+                            <div id="processingFile" style="color: #888; font-size: 12px; margin-top: 8px;">
+                                Please wait...
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- File Info (shown after processing) -->
+                    <div id="fileInfo" class="file-info" style="display: none;">
+                        <div class="file-info-row">
+                            <span class="file-info-label">File:</span>
+                            <span class="file-info-value" id="fileName"></span>
+                        </div>
+                        <div class="file-info-row">
+                            <span class="file-info-label">Records:</span>
+                            <span class="file-info-value record-count" id="recordCount"></span>
+                        </div>
+                        <div class="file-info-row">
+                            <span class="file-info-label">Processed:</span>
+                            <span class="file-info-value" id="processedTime"></span>
+                        </div>
+                    </div>
+
+                    <!-- Reset Button -->
+                    <button id="resetBtn" class="button-reset" onclick="resetForm()" style="display: none; margin-top: 20px;">
+                        PROCESS ANOTHER FILE
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const processing = document.getElementById('processing');
+        const errorBanner = document.getElementById('errorBanner');
+        const successBanner = document.getElementById('successBanner');
+        const fileInfo = document.getElementById('fileInfo');
+        const resetBtn = document.getElementById('resetBtn');
+
+        // Click to upload
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                uploadFile();
+            }
+        });
+
+        // File input change
+        fileInput.addEventListener('change', uploadFile);
+
+        function uploadFile() {
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            // Validate
+            if (!file.name.endsWith('.bz2')) {
+                showError('Only .bz2 files are allowed');
+                return;
+            }
+
+            if (file.size > 500 * 1024 * 1024) {
+                showError('File is too large (max 500MB)');
+                return;
+            }
+
+            // Show processing
+            uploadArea.style.display = 'none';
+            errorBanner.classList.remove('show');
+            successBanner.classList.remove('show');
+            processing.classList.add('active');
+            document.getElementById('processingFile').textContent = file.name;
+
+            // Upload
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                processing.classList.remove('active');
+                
+                if (data.error) {
+                    showError(data.error);
+                } else {
+                    showSuccess(file.name, data);
+                }
+            })
+            .catch(error => {
+                processing.classList.remove('active');
+                showError('Upload failed: ' + error.message);
+            });
+        }
+
+        function showError(message) {
+            uploadArea.style.display = 'block';
+            errorBanner.textContent = '✗ ' + message;
+            errorBanner.classList.add('show');
+            fileInfo.style.display = 'none';
+            resetBtn.style.display = 'none';
+        }
+
+        function showSuccess(filename, data) {
+            uploadArea.style.display = 'none';
+            successBanner.classList.add('show');
+            fileInfo.style.display = 'block';
+            resetBtn.style.display = 'block';
+
+            document.getElementById('fileName').textContent = filename;
+            document.getElementById('recordCount').textContent = data.records.toLocaleString();
+            document.getElementById('processedTime').textContent = new Date().toLocaleString();
+
+            document.getElementById('successDetails').innerHTML = `
+                <div style="font-size: 13px; color: #888; margin-bottom: 12px;">
+                    Successfully created Google Sheet with <span class="record-count">${data.records.toLocaleString()}</span> records
+                </div>
+            `;
+
+            const sheetLink = document.getElementById('sheetLink');
+            sheetLink.href = data.url;
+            sheetLink.textContent = '✓ OPEN IN GOOGLE SHEETS';
+        }
+
+        function resetForm() {
+            fileInput.value = '';
+            uploadArea.style.display = 'block';
+            successBanner.classList.remove('show');
+            fileInfo.style.display = 'none';
+            resetBtn.style.display = 'none';
+        }
+
+        function logout() {
+            window.location.href = '/logout';
+        }
+    </script>
+</body>
+</html>
