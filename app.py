@@ -32,6 +32,10 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
 
+# Trust proxy headers for HTTPS detection on Cloud Run
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
 UPLOAD_FOLDER = '/tmp/chimera_uploads'
 ALLOWED_EXTENSIONS = {'bz2'}
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500MB
