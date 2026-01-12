@@ -30,7 +30,8 @@ from werkzeug.utils import secure_filename
 # ============================================================================
 
 app = Flask(__name__)
-app.secret_key = secrets.token_hex(32)
+# Use a fixed secret key from env var, or generate one (for local dev only)
+app.secret_key = os.getenv('SECRET_KEY', secrets.token_hex(32))
 
 # Trust proxy headers for HTTPS detection on Cloud Run
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -271,7 +272,10 @@ def login():
 @app.route('/oauth_callback')
 def oauth_callback():
     """Google OAuth callback."""
-    state = session['state']
+    state = session.get('state')
+    if not state:
+        # Session expired or lost, redirect to login
+        return redirect(url_for('login'))
     client_config = get_oauth_client_config()
     if client_config:
         flow = Flow.from_client_config(client_config, scopes=SCOPES, state=state)
