@@ -14,7 +14,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py .
 COPY static/ static/
 COPY templates/ templates/
-COPY credentials.json . 2>/dev/null || true
 
 # Expose port
 EXPOSE 8080
