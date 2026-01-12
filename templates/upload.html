@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CHIMERA - BZ2 to Sheets</title>
+    <title>CHIMERA - BZ2 to CSV</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
     <style>
         .upload-area {
@@ -93,25 +93,6 @@
             margin-bottom: 12px;
         }
 
-        .sheet-link {
-            display: inline-block;
-            padding: 12px 24px;
-            background: linear-gradient(135deg, #00D4FF 0%, #0099FF 100%);
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            transition: all 0.3s ease;
-            margin-top: 12px;
-        }
-
-        .sheet-link:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(0, 212, 255, 0.3);
-        }
-
         .record-count {
             color: #00D4FF;
             font-family: 'Lexend', sans-serif;
@@ -159,22 +140,39 @@
             font-family: 'Courier New', monospace;
             word-break: break-all;
         }
+
+        .button-reset {
+            display: inline-block;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #00D4FF 0%, #0099FF 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+
+        .button-reset:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 212, 255, 0.3);
+        }
     </style>
 </head>
 <body>
     <div class="image-bg"></div>
     <div class="login-overlay"></div>
-    
+
     <div class="app">
         <div class="dashboard">
             <!-- Header -->
             <div class="header">
                 <div class="header-left">
                     <div class="header-title">CHIMERA BZ2 Viewer</div>
-                    <div class="header-subtitle">Convert to Google Sheets Instantly</div>
-                </div>
-                <div>
-                    <button class="button-logout" onclick="logout()">LOGOUT</button>
+                    <div class="header-subtitle">Convert BZ2 to CSV Instantly</div>
                 </div>
             </div>
 
@@ -182,8 +180,7 @@
             <div class="content">
                 <div class="glass-panel" style="max-width: 700px; margin: 0 auto;">
                     <div style="text-align: center; margin-bottom: 30px;">
-                        <div style="font-size: 14px; color: #888; margin-bottom: 8px;">Logged in as:</div>
-                        <div style="color: #00D4FF; font-weight: 600; font-size: 14px;">{{ email }}</div>
+                        <div style="font-size: 14px; color: #888;">Upload a .bz2 file and download as CSV</div>
                     </div>
 
                     <!-- Error Banner -->
@@ -191,9 +188,8 @@
 
                     <!-- Success Banner -->
                     <div id="successBanner" class="success-banner">
-                        <div class="success-message">✓ File processed successfully!</div>
+                        <div class="success-message">CSV file downloaded!</div>
                         <div id="successDetails"></div>
-                        <a id="sheetLink" href="#" target="_blank" class="sheet-link">OPEN IN GOOGLE SHEETS</a>
                     </div>
 
                     <!-- Upload Area -->
@@ -222,10 +218,6 @@
                         <div class="file-info-row">
                             <span class="file-info-label">File:</span>
                             <span class="file-info-value" id="fileName"></span>
-                        </div>
-                        <div class="file-info-row">
-                            <span class="file-info-label">Records:</span>
-                            <span class="file-info-value record-count" id="recordCount"></span>
                         </div>
                         <div class="file-info-row">
                             <span class="file-info-label">Processed:</span>
@@ -267,7 +259,7 @@
         uploadArea.addEventListener('drop', (e) => {
             e.preventDefault();
             uploadArea.classList.remove('dragover');
-            
+
             const files = e.dataTransfer.files;
             if (files.length > 0) {
                 fileInput.files = files;
@@ -308,61 +300,70 @@
                 method: 'POST',
                 body: formData
             })
-            .then(response => response.json())
-            .then(data => {
-                processing.classList.remove('active');
-                
-                if (data.error) {
-                    showError(data.error);
+            .then(response => {
+                if (response.ok && response.headers.get('content-type')?.includes('text/csv')) {
+                    // Success - download the CSV
+                    return response.blob().then(blob => {
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = file.name.replace('.bz2', '.csv');
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        a.remove();
+                        return { success: true, filename: file.name };
+                    });
                 } else {
-                    showSuccess(file.name, data);
+                    // Error response
+                    return response.json().then(data => {
+                        throw new Error(data.error || 'Unknown error');
+                    });
+                }
+            })
+            .then(result => {
+                processing.classList.remove('active');
+                if (result.success) {
+                    showSuccess(result.filename);
                 }
             })
             .catch(error => {
                 processing.classList.remove('active');
-                showError('Upload failed: ' + error.message);
+                showError(error.message);
             });
         }
 
         function showError(message) {
             uploadArea.style.display = 'block';
-            errorBanner.textContent = '✗ ' + message;
+            errorBanner.textContent = message;
             errorBanner.classList.add('show');
             fileInfo.style.display = 'none';
             resetBtn.style.display = 'none';
         }
 
-        function showSuccess(filename, data) {
+        function showSuccess(filename) {
             uploadArea.style.display = 'none';
             successBanner.classList.add('show');
             fileInfo.style.display = 'block';
             resetBtn.style.display = 'block';
 
             document.getElementById('fileName').textContent = filename;
-            document.getElementById('recordCount').textContent = data.records.toLocaleString();
             document.getElementById('processedTime').textContent = new Date().toLocaleString();
 
             document.getElementById('successDetails').innerHTML = `
-                <div style="font-size: 13px; color: #888; margin-bottom: 12px;">
-                    Successfully created Google Sheet with <span class="record-count">${data.records.toLocaleString()}</span> records
+                <div style="font-size: 13px; color: #888;">
+                    CSV file has been downloaded to your computer
                 </div>
             `;
-
-            const sheetLink = document.getElementById('sheetLink');
-            sheetLink.href = data.url;
-            sheetLink.textContent = '✓ OPEN IN GOOGLE SHEETS';
         }
 
         function resetForm() {
             fileInput.value = '';
             uploadArea.style.display = 'block';
             successBanner.classList.remove('show');
+            errorBanner.classList.remove('show');
             fileInfo.style.display = 'none';
             resetBtn.style.display = 'none';
-        }
-
-        function logout() {
-            window.location.href = '/logout';
         }
     </script>
 </body>
